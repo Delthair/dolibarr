@@ -12,7 +12,7 @@
  * Copyright (C) 2015-2022	Ferran Marcet			<fmarcet@2byte.es>
  * Copyright (C) 2016-2023	Alexandre Spangaro		<aspangaro@open-dsi.fr>
  * Copyright (C) 2018       Nicolas ZABOURI			<info@inovea-conseil.com>
- * Copyright (C) 2018-2024  Frédéric France         <frederic.france@free.fr>
+ * Copyright (C) 2018-2025  Frédéric France         <frederic.france@free.fr>
  * Copyright (C) 2022      	Gauthier VERDOL     	<gauthier.verdol@atm-consulting.fr>
  * Copyright (C) 2023		Nick Fragoulis
  * Copyright (C) 2024-2025	MDW						<mdeweerd@users.noreply.github.com>
@@ -120,9 +120,16 @@ class SupplierInvoiceLine extends CommonObjectLine
 	/**
 	 * Unit price included taxes
 	 * @var float
+	 * @deprecated Use $subprice_ttc
+	 * @see $subprice_ttc
 	 */
 	public $pu_ttc;
 
+	/**
+	 * Unit price including taxes
+	 * @var float
+	 */
+	public $subprice_ttc;
 
 	/**
 	 * Id of the corresponding supplier invoice
@@ -145,11 +152,12 @@ class SupplierInvoiceLine extends CommonObjectLine
 	public $description;
 
 	/**
-	 * @var int|string
+	 * @var int|''
 	 */
 	public $date_start;
+
 	/**
-	 * @var int|string
+	 * @var int|''
 	 */
 	public $date_end;
 
@@ -356,8 +364,9 @@ class SupplierInvoiceLine extends CommonObjectLine
 		$this->ref_supplier		= $obj->ref_supplier;
 		$this->product_desc		= $obj->product_desc;
 
-		$this->subprice = $obj->pu_ht;
-		$this->pu_ht = $this->subprice;
+		$this->subprice 		= $obj->pu_ht;
+		$this->pu_ht 			= $obj->pu_ht;
+		$this->subprice_ttc		= $obj->pu_ttc;
 		$this->pu_ttc			= $obj->pu_ttc;
 		$this->tva_tx			= $obj->tva_tx;
 		$this->localtax1_tx		= $obj->localtax1_tx;
@@ -458,7 +467,7 @@ class SupplierInvoiceLine extends CommonObjectLine
 	 */
 	public function update($notrigger = 0)
 	{
-		global $conf;
+		global $user;
 
 		$pu = price2num($this->subprice);
 		$qty = price2num($this->qty);
@@ -513,7 +522,7 @@ class SupplierInvoiceLine extends CommonObjectLine
 		$sql .= ", date_start = ".($this->date_start != '' ? "'".$this->db->idate($this->date_start)."'" : "null");
 		$sql .= ", date_end = ".($this->date_end != '' ? "'".$this->db->idate($this->date_end)."'" : "null");
 		$sql .= ", pu_ht = ".price2num($this->subprice);
-		$sql .= ", pu_ttc = ".price2num($this->pu_ttc);
+		$sql .= ", pu_ttc = ".price2num($this->subprice_ttc);
 		$sql .= ", qty = ".price2num($this->qty);
 		$sql .= ", remise_percent = ".price2num($this->remise_percent);
 		if ($this->fk_remise_except > 0) {
@@ -569,8 +578,6 @@ class SupplierInvoiceLine extends CommonObjectLine
 		}
 
 		if (!$error && !$notrigger) {
-			global $langs, $user;
-
 			// Call trigger
 			if ($this->call_trigger('LINEBILL_SUPPLIER_MODIFY', $user) < 0) {
 				$this->db->rollback();
@@ -797,8 +804,18 @@ class SupplierInvoiceLine extends CommonObjectLine
 				// End call triggers
 			}
 
-			$this->db->commit();
-			return $this->id;
+			if (!$error) {
+				$this->db->commit();
+				return $this->id;
+			}
+
+			foreach ($this->errors as $errmsg) {
+				dol_syslog(get_class($this)."::insert ".$errmsg, LOG_ERR);
+				$this->error .= ($this->error ? ', '.$errmsg : $errmsg);
+			}
+
+			$this->db->rollback();
+			return -3;
 		} else {
 			$this->error = $this->db->error();
 			$this->db->rollback();

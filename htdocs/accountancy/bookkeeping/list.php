@@ -7,6 +7,7 @@
  * Copyright (C) 2018-2025  Frédéric France         <frederic.france@free.fr>
  * Copyright (C) 2022  		Progiseize         		<a.bisotti@progiseiea-conseil.com>
  * Copyright (C) 2024-2025	MDW                     <mdeweerd@users.noreply.github.com>
+ * Copyright (C) 2025		Nicolas Barrouillet		<nicolas@pragma-tech.fr>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -54,13 +55,16 @@ $langs->loadLangs(array("accountancy", "compta"));
 
 // Get Parameters
 $socid = GETPOSTINT('socid');
+$journal_code = GETPOST('code_journal', 'alpha');
+$account = GETPOST("account", 'int');
+$massdate = dol_mktime(0, 0, 0, GETPOSTINT('massdatemonth'), GETPOSTINT('massdateday'), GETPOSTINT('massdateyear'));
 
 // action+display Parameters
 $action = GETPOST('action', 'aZ09');
 $massaction = GETPOST('massaction', 'alpha');
 $confirm = GETPOST('confirm', 'alpha');
-$toselect = GETPOST('toselect', 'array');
-$contextpage = GETPOST('contextpage', 'aZ') ? GETPOST('contextpage', 'aZ') : 'bookkeepinglist';
+$toselect = GETPOST('toselect', 'array:int');
+$contextpage = GETPOST('contextpage', 'aZ') ? GETPOST('contextpage', 'aZ') : str_replace('_', '', basename(dirname(__FILE__)).basename(__FILE__, '.php'));
 
 // Search Parameters
 $search_mvt_num = GETPOST('search_mvt_num', 'alpha');
@@ -136,10 +140,6 @@ $page = GETPOSTISSET('pageplusone') ? (GETPOSTINT('pageplusone') - 1) : GETPOSTI
 if (empty($page) || $page < 0) {
 	$page = 0;
 }
-
-//#32695 clone of bookkeeping entries
-$journal_code = GETPOST('code_journal', 'alpha');
-
 $offset = $limit * $page;
 $pageprev = $page - 1;
 $pagenext = $page + 1;
@@ -242,7 +242,7 @@ if (GETPOST('cancel', 'alpha')) {
 	$action = 'list';
 	$massaction = '';
 }
-if (!GETPOST('confirmmassaction', 'alpha') && $massaction != 'preunletteringauto' && $massaction != 'preunletteringmanual' && $massaction != 'predeletebookkeepingwriting'&& $massaction != 'preclonebookkeepingwriting' && $massaction != 'preassignaccountbookkeepingwriting' && $massaction != 'prereturnaccountbookkeepingwriting') {
+if (!GETPOST('confirmmassaction', 'alpha') && $massaction != 'preunletteringauto' && $massaction != 'preunletteringmanual' && $massaction != 'predeletebookkeepingwriting' && $massaction != 'preclonebookkeepingwriting' && $massaction != 'preassignaccountbookkeepingwriting' && $massaction != 'prereturnaccountbookkeepingwriting') {
 	$massaction = '';
 }
 
@@ -336,7 +336,7 @@ if (empty($reshook)) {
 		$listofaccountsforgroup2 = array();
 		if (is_array($listofaccountsforgroup)) {
 			foreach ($listofaccountsforgroup as $tmpval) {
-				$listofaccountsforgroup2[] = "'".$db->escape((string) $tmpval['id'])."'";
+				$listofaccountsforgroup2[] = "'".$db->escape((string) $tmpval['account_number'])."'";
 			}
 		}
 		$filter['t.search_accounting_code_in'] = implode(',', $listofaccountsforgroup2);
@@ -543,9 +543,9 @@ if (empty($reshook)) {
 		}
 	}
 
-	//massaction clone
+	// massaction cloning
 	if (!$error && $action == 'clonebookkeepingwriting' && $confirm == "yes" && $user->hasRight('accounting', 'mouvements', 'creer')) {
-		$result = $object->newCloneMass($toselect);
+		$result = $object->newCloneMass($toselect, $journal_code, $massdate);
 		if ($result == -1) {
 			$error++;
 		}
@@ -557,9 +557,10 @@ if (empty($reshook)) {
 			$db->rollback();
 		}
 	}
-	//massaction assign new account
+
+	// massaction assign new account
 	if (!$error && $action == 'assignaccountbookkeepingwriting' && $confirm == "yes" && $user->hasRight('accounting', 'mouvements', 'creer')) {
-		$result = $object->assignAccountMass($toselect);
+		$result = $object->assignAccountMass($toselect, (int) $account);
 		if ($result == -1) {
 			$error++;
 		}
@@ -572,9 +573,9 @@ if (empty($reshook)) {
 		}
 	}
 
-	//mass action return account
+	// mass action return account
 	if (!$error && $action == 'returnaccountbookkeepingwriting' && $confirm == "yes" && $user->hasRight('accounting', 'mouvements', 'creer')) {
-		$result = $object->newReturnAccount($toselect);
+		$result = $object->newReturnAccount($toselect, $journal_code, $massdate);
 		if ($result == -1) {
 			$error++;
 		}
@@ -586,7 +587,6 @@ if (empty($reshook)) {
 			$db->rollback();
 		}
 	}
-
 
 	// mass actions on lettering
 	if (!$error && getDolGlobalInt('ACCOUNTING_ENABLE_LETTERING')) {
@@ -785,7 +785,7 @@ if (!getDolGlobalInt('MAIN_DISABLE_FULL_SCANLIST')) {
 		dol_print_error($db);
 	}
 
-	if (($page * $limit) > $nbtotalofrecords) {	// if total resultset is smaller then paging size (filtering), goto and load page 0
+	if (($page * $limit) > (int) $nbtotalofrecords) {	// if total resultset is smaller then paging size (filtering), goto and load page 0
 		$page = 0;
 		$offset = 0;
 	}
@@ -835,20 +835,17 @@ if (getDolGlobalInt('ACCOUNTING_ENABLE_LETTERING') && $user->hasRight('accountin
 	$arrayofmassactions['letteringmanual'] = img_picto('', 'check', 'class="pictofixedwidth"') . $langs->trans('LetteringManual');
 	$arrayofmassactions['preunletteringmanual'] = img_picto('', 'uncheck', 'class="pictofixedwidth"') . $langs->trans('UnletteringManual');
 }
-if ($user->hasRight('accounting', 'mouvements', 'supprimer')) {
-	$arrayofmassactions['predeletebookkeepingwriting'] = img_picto('', 'delete', 'class="pictofixedwidth"').$langs->trans("Delete");
-}
-//massaction clone
 if ($user->hasRight('accounting', 'mouvements', 'creer')) {
-	$arrayofmassactions['preclonebookkeepingwriting'] = img_picto('', 'fa-clone', 'class="pictofixedwidth"').$langs->trans("Clone");
+	$arrayofmassactions['preclonebookkeepingwriting'] = img_picto('', 'clone', 'class="pictofixedwidth"').$langs->trans("Clone");
 }
-//massaction assign account
 if ($user->hasRight('accounting', 'mouvements', 'creer')) {
 	$arrayofmassactions['preassignaccountbookkeepingwriting'] = img_picto('', 'fa-exchange-alt', 'class="pictofixedwidth"').$langs->trans("AssignAccount");
 }
-//massaction return account
 if ($user->hasRight('accounting', 'mouvements', 'creer')) {
 	$arrayofmassactions['prereturnaccountbookkeepingwriting'] = img_picto('', 'undo', 'class="pictofixedwidth"').$langs->trans("ReturnAccount");
+}
+if ($user->hasRight('accounting', 'mouvements', 'supprimer')) {
+	$arrayofmassactions['predeletebookkeepingwriting'] = img_picto('', 'delete', 'class="pictofixedwidth"').$langs->trans("Delete");
 }
 
 if (GETPOSTINT('nomassaction') || in_array($massaction, array('preunletteringauto', 'preunletteringmanual', 'predeletebookkeepingwriting', 'preclonebookkeepingwriting', 'preassignaccountbookkeepingwriting', 'prereturnaccountbookkeepingwriting'))) {
@@ -856,7 +853,7 @@ if (GETPOSTINT('nomassaction') || in_array($massaction, array('preunletteringaut
 }
 $massactionbutton = $form->selectMassAction($massaction, $arrayofmassactions);
 
-print '<form method="POST" id="searchFormList" action="'.$_SERVER["PHP_SELF"].'">';
+print '<form method="POST" id="searchFormList" action="'.dolBuildUrl($_SERVER["PHP_SELF"]).'">';
 print '<input type="hidden" name="token" value="'.newToken().'">';
 print '<input type="hidden" name="action" value="list">';
 if ($optioncss != '') {
@@ -908,22 +905,39 @@ if ($massaction == 'preunletteringauto') {
 	$formquestion = array(array('type' => 'other', 'name' => 'account', 'label' => '<span class="fieldrequired">' . $langs->trans("AccountAccountingShort") . '</span>', 'value' => $input),);
 	print $form->formconfirm($_SERVER["PHP_SELF"], $langs->trans("confirmMassAssignAccountBookkeepingWritingConfirm"), $langs->trans("ConfirmMassAssignAccountBookkeepingWritingQuestion", count($toselect)), "assignaccountbookkeepingwriting", $formquestion, '', 0, 200, 500, 1);
 } elseif ($massaction == 'preclonebookkeepingwriting') {
-	$input1 = $form->selectDate('', 'doc_date', 0, 0, 0, "create_mvt", 1, 1);
-	$input2 = $formaccounting->select_journal($journal_code, 'code_journal', 0, 0, 1, 1).'</td>';
-	if (getDolGlobalString('INPUT_JOURNAL_CLONE')) {
-		$champJournal = array('type' => 'other', 'name' => 'code_journal', 'label' => '<span class="fieldrequired">' . $langs->trans("Codejournal") . '</span>', 'value' => $input2);
-	} else {
-		$champJournal = null;
+	$input1 = $form->selectDate('', 'massdate', 0, 0, 0, "create_mvt", 1, 1);
+	$input2 = $formaccounting->select_journal($journal_code, 'code_journal', 0, 0, 1, 1) . '</td>';
+	$formquestion = array(
+		array(
+			'type' => 'other',
+			'name' => 'massdate',
+			'label' => '<span class="fieldrequired">' . $langs->trans("Docdate") . '</span>',
+			'value' => $input1
+		)
+	);
+
+	if (getDolGlobalString('ACCOUNTING_CLONING_ENABLE_INPUT_JOURNAL')) {
+		$formquestion[] = array(
+			'type' => 'text',
+			'name' => 'code_journal',
+			'label' => '<span class="fieldrequired">' . $langs->trans("Codejournal") . '</span>',
+			'value' => $input2
+		);
 	}
-	$formquestion = array(array('type' => 'other', 'name' => 'doc_date', 'label' => '<span class="fieldrequired">' . $langs->trans("Docdate") . '</span>', 'value' => $input1),
-		$champJournal,);
-	print $form->formconfirm($_SERVER["PHP_SELF"], $langs->trans("ConfirmMassCloneBookkeepingWriting"), $langs->trans("ConfirmMassCloneBookkeepingWritingQuestion", count($toselect)), "clonebookkeepingwriting", $formquestion, '', 0, 200, 500, 1);
+
+	print $form->formconfirm(
+		$_SERVER["PHP_SELF"],
+		$langs->trans("ConfirmMassCloneBookkeepingWriting"),
+		$langs->trans("ConfirmMassCloneBookkeepingWritingQuestion", count($toselect)),
+		"clonebookkeepingwriting",
+		$formquestion,
+		'', 0, 200, 500, 1
+	);
 } elseif ($massaction == 'prereturnaccountbookkeepingwriting') {
-	$input1 = $form->selectDate('', 'doc_date', 0, 0, 0, "create_mvt", 1, 1);
-	$formquestion = array(array('type' => 'other', 'name' => 'doc_date', 'label' => '<span class="fieldrequired">' . $langs->trans("Docdate") . '</span>', 'value' => $input1));
+	$input1 = $form->selectDate('', 'massdate', 0, 0, 0, "create_mvt", 1, 1);
+	$formquestion = array(array('type' => 'other', 'name' => 'massdate', 'label' => '<span class="fieldrequired">' . $langs->trans("Docdate") . '</span>', 'value' => $input1));
 	print $form->formconfirm($_SERVER["PHP_SELF"], $langs->trans("ConfirmMassReturnAccountBookkeepingWriting"), $langs->trans("ConfirmMassReturnAccountBookkeepingWritingQuestion", count($toselect)), "returnaccountbookkeepingwriting", $formquestion, '', 0, 200, 500, 1);
 }
-
 
 //$topicmail = "Information";
 //$modelmail = "accountingbookkeeping";
@@ -1041,7 +1055,7 @@ if (!empty($arrayfields['t.credit']['checked'])) {
 	print '<input type="text" class="flat" name="search_credit" size="4" value="'.dol_escape_htmltag($search_credit).'">';
 	print '</td>';
 }
-// Lettering code
+// Matching code
 if (!empty($arrayfields['t.lettering_code']['checked'])) {
 	print '<td class="liste_titre center">';
 	print '<input type="text" size="3" class="flat" name="search_lettering_code" value="'.dol_escape_htmltag($search_lettering_code).'"/>';
@@ -1292,6 +1306,7 @@ while ($i < min($num, $limit)) {
 	// Document ref
 	$modulepart = '';	// may be used by include*.tpl.php
 	if (!empty($arrayfields['t.doc_ref']['checked'])) {
+		$documentlink = '';
 		$objectstatic = null;
 
 		if ($line->doc_type === 'customer_invoice') {
@@ -1303,7 +1318,7 @@ while ($i < min($num, $limit)) {
 			//$modulepart = 'facture';
 
 			$filename = dol_sanitizeFileName($line->doc_ref);
-			$filedir = $conf->facture->dir_output.'/'.dol_sanitizeFileName($line->doc_ref);
+			$filedir = $conf->invoice->dir_output.'/'.dol_sanitizeFileName($line->doc_ref);
 			$urlsource = $_SERVER['PHP_SELF'].'?id='.$objectstatic->id;
 			$documentlink = $formfile->getDocumentsLink($objectstatic->element, $filename, $filedir);
 		} elseif ($line->doc_type === 'supplier_invoice') {
@@ -1422,7 +1437,7 @@ while ($i < min($num, $limit)) {
 		$totalarray['val']['totalcredit'] += $line->credit;
 	}
 
-	// Lettering code
+	// Matching code
 	if (!empty($arrayfields['t.lettering_code']['checked'])) {
 		print '<td class="center">'.$line->lettering_code.'</td>';
 		if (!$i) {

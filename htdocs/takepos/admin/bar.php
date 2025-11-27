@@ -27,12 +27,6 @@
 
 // Load Dolibarr environment
 require '../../main.inc.php'; // Load $user and permissions
-require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
-require_once DOL_DOCUMENT_ROOT.'/product/class/html.formproduct.class.php';
-require_once DOL_DOCUMENT_ROOT.'/core/lib/pdf.lib.php';
-require_once DOL_DOCUMENT_ROOT.'/categories/class/categorie.class.php';
-require_once DOL_DOCUMENT_ROOT."/core/lib/takepos.lib.php";
-
 /**
  * @var Conf $conf
  * @var DoliDB $db
@@ -40,6 +34,11 @@ require_once DOL_DOCUMENT_ROOT."/core/lib/takepos.lib.php";
  * @var Translate $langs
  * @var User $user
  */
+require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/product/class/html.formproduct.class.php';
+require_once DOL_DOCUMENT_ROOT.'/core/lib/pdf.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/categories/class/categorie.class.php';
+require_once DOL_DOCUMENT_ROOT."/core/lib/takepos.lib.php";
 
 // Security check
 if (!$user->admin) {
@@ -183,6 +182,7 @@ if (getDolGlobalInt('TAKEPOS_BAR_RESTAURANT')) {
 		print $langs->trans("SupplementCategory");
 		print '</td>';
 		print '<td class="nowrap">';
+		//print $form->selectCategories(Categorie::TYPE_PRODUCT, 'TAKEPOS_SUPPLEMENTS_CATEGORY', null);
 		print img_picto('', 'category', 'class="pictofixedwidth"');
 		print $form->select_all_categories(Categorie::TYPE_PRODUCT, getDolGlobalString('TAKEPOS_SUPPLEMENTS_CATEGORY'), 'TAKEPOS_SUPPLEMENTS_CATEGORY', 64, 0, 0, 0, 'minwidth 200 maxwidth500 widthcentpercentminusx');
 		print ajax_combobox('TAKEPOS_SUPPLEMENTS_CATEGORY');
@@ -198,19 +198,10 @@ if (getDolGlobalInt('TAKEPOS_BAR_RESTAURANT')) {
 
 	print '<tr class="oddeven value"><td>';
 	print 'QR - '.$langs->trans("AutoOrder");
+	print ' - <span class="warning">'.$langs->trans("Development").'</span>';
 	print '</td>';
 	print '<td class="">';
 	print ajax_constantonoff("TAKEPOS_AUTO_ORDER", array(), $conf->entity, 0, 0, 1, 0);
-	print '</td></tr>';
-
-	// Experimental minimal interface
-	print '<tr class="oddeven value"><td>';
-	print $langs->trans("BasicPhoneLayout");
-	print ' - <span class="warning">'.$langs->trans("Experimental").'</span>';
-	print '</td>';
-	print '<td class="">';
-	//print $form->selectyesno("TAKEPOS_PHONE_BASIC_LAYOUT", $conf->global->TAKEPOS_PHONE_BASIC_LAYOUT, 1);
-	print ajax_constantonoff("TAKEPOS_PHONE_BASIC_LAYOUT", array(), $conf->entity, 0, 0, 1, 0, 0, 0, '_warning');
 	print '</td></tr>';
 
 	print '</table>';
