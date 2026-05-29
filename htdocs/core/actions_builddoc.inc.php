@@ -42,6 +42,7 @@
  * @var ?int $usercangeneratedoc
  * @var int $permissiontoadd
  * @var string $upload_dir
+ * @var int $donotredirect
  *
  * @var ?int $hidedetails
  * @var ?int $hidedesc
@@ -58,7 +59,7 @@ if (!empty($permissioncreate) && empty($permissiontoadd)) {
 }
 
 // Build doc
-if ($action == 'builddoc' && ($permissiontoadd || !empty($usercangeneretedoc))) {
+if ($action == 'builddoc' && ($permissiontoadd || !empty($usercangeneratedoc))) {
 	if (is_numeric(GETPOST('model', 'alpha'))) {
 		setEventMessages($langs->trans("ErrorFieldRequired", $langs->transnoentities("Model")), null, 'errors');
 	} else {
@@ -103,8 +104,10 @@ if ($action == 'builddoc' && ($permissiontoadd || !empty($usercangeneretedoc))) 
 		$moreparams = isset($moreparams) ? $moreparams : null;
 
 		$result = $object->generateDocument($object->model_pdf, $outputlangs, $hidedetails, $hidedesc, $hideref, $moreparams);
+
 		if ($result <= 0) {
 			setEventMessages($object->error, $object->errors, 'errors');
+			setEventMessages($object->warning, $object->warnings, 'warnings');
 			$action = '';
 		} else {
 			if (empty($donotredirect)) {	// This is set when include is done by bulk action "Bill Orders"

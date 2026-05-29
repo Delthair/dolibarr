@@ -1,5 +1,5 @@
 <?php
-/* Copyright (C) 2005-2020  Laurent Destailleur     <eldy@users.sourceforge.net>
+/* Copyright (C) 2005-2026  Laurent Destailleur     <eldy@users.sourceforge.net>
  * Copyright (C) 2007       Rodolphe Quiedeville    <rodolphe@quiedeville.org>
  * Copyright (C) 2007-2012  Regis Houssin           <regis.houssin@inodbox.com>
  * Copyright (C) 2015-2025  Frédéric France         <frederic.france@free.fr>
@@ -39,6 +39,7 @@ require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/geturl.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/blockedlog/lib/blockedlog.lib.php';
 
 $langs->load("admin");
 
@@ -49,6 +50,9 @@ if (!$user->admin && !$user->hasRight('bockedlog', 'read')) {
 }
 
 $error = 0;
+
+// Version blockedlog
+$versionbadge = '<span class="badge-text badge-secondary">'.getBlockedLogVersionToShow().'</span>';
 
 
 /*
@@ -61,13 +65,15 @@ llxHeader('', '', '', '', 0, 0, '', '', '', 'mod-admin page-system_filecheck');
 
 print load_fiche_titre($langs->trans("FileCheckDolibarr"), '', 'title_setup');
 
-print '<div class="opacitymedium hideonsmartphone justify">'.$langs->trans("FileCheckDesc");
+print '<div class="opacitymedium hideonsmartphone justify">'.$langs->trans("FileCheckDesc").'</div>';
 if (isModEnabled('blockedlog')) {
-	$s = $langs->trans("DataIntegrityDesc", '{s}');
-	$s = str_replace('{s}', DOL_URL_ROOT.'/blockedlog/admin/blockedlog_list.php', $s);
-	print '<br>'.$s;
+	print '<span class="opacitymedium">';
+	print $langs->trans("DataIntegrityDesc").': ';
+	print '</span>';
+	print '<a href="'.DOL_URL_ROOT.'/blockedlog/admin/blockedlog_list.php">'.img_picto('', 'url', 'class="pictofixedwidth"').$langs->trans("BlockedLog").'</a><br>';
 }
-print'</div><br>';
+print'<br>';
+
 
 // Version
 print '<div class="div-table-responsive-no-min">';
@@ -77,7 +83,8 @@ $htmltooltip = '';
 $htmltooltip .= $langs->trans("VersionLastInstall").': '.getDolGlobalString('MAIN_VERSION_LAST_INSTALL').'<br>'."\n";
 $htmltooltip .= $langs->trans("VersionLastUpgrade").': '.getDolGlobalString('MAIN_VERSION_LAST_UPGRADE').'<br>'."\n";
 
-print '<tr class="oddeven nohover"><td width="300">'.$langs->trans("VersionProgram").'</td><td>';
+print '<tr class="oddeven nohover">';
+print '<td width="300">'.$langs->trans("VersionProgram").'</td><td>';
 print '<span class="badge-text badge-secondary valignmiddle">'.DOL_VERSION.'</span>';
 // If current version differs from last upgrade
 if (!getDolGlobalString('MAIN_VERSION_LAST_UPGRADE')) {
@@ -93,8 +100,37 @@ if (!getDolGlobalString('MAIN_VERSION_LAST_UPGRADE')) {
 }
 print ' '.$form->textwithpicto('', $htmltooltip);
 print '</td></tr>'."\n";
+
+if (isALNERunningVersion()) {
+	print '<tr class="oddeven nohover">';
+	print '<td width="300">'.$langs->trans("VersionOfModule", $langs->transnoentitiesnoconv("BlockedLog")).'</td><td>';
+	print $versionbadge;
+	print '</td>';
+	print '</tr>';
+}
+
 print '</table>';
 print '</div>';
+
+// Add a complementary optional information
+$infotoshow = '';
+if ($mysoc->country_code == 'FR') {
+	$islne = isALNEQualifiedVersion(1, 1);
+	if ($islne) {
+		if (preg_match('/\-/', getBlockedLogVersionToShow())) {
+			// This is an alpha or beta version
+			$infotoshow = $langs->trans("LNECandidateVersionForCertificationFR", getBlockedLogVersionToShow());
+		} else {
+			$infotoshow = $langs->trans("LNECertifiedVersionFR", getBlockedLogVersionToShow());
+		}
+	} else {
+		$infotoshow = $langs->trans("NotCertifiedVersionFR", getBlockedLogVersionToShow());
+	}
+}
+if ($infotoshow) {
+	print info_admin($infotoshow, 0, 0, 'info');
+}
+
 print '<br><br>';
 
 
@@ -589,7 +625,7 @@ if (empty($error) && !empty($xml)) {
 
 		// Print list of files
 		$outforlistoffiles = '<a href="#" onclick="console.log(\'Click\'); jQuery(\'#listofunalterablefiles\').toggle(); return false;">'.$langs->trans("ShowListOfFiles").'</a><br>';
-		$outforlistoffiles .= '<textarea id="listofunalterablefiles" class="hideobject quatrevingtpercent" rows="12">';
+		$outforlistoffiles .= '<textarea id="listofunalterablefiles" class="hideobject quatrevingtpercent" rows="12" spellcheck="false">';
 		$i = 0;
 		foreach ($listoffilestoanalyze as $dirtoanalyze) {
 			$entry = array();

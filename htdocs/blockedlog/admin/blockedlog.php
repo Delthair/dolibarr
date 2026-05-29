@@ -1,7 +1,7 @@
 <?php
 /* Copyright (C) 2017      ATM Consulting      <contact@atm-consulting.fr>
  * Copyright (C) 2017-2018 Laurent Destailleur <eldy@destailleur.fr>
- * Copyright (C) 2024      Frédéric France     <frederic.france@free.fr>
+ * Copyright (C) 2024-2026  Frédéric France     <frederic.france@free.fr>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -47,6 +47,7 @@ $backtopage = GETPOST('backtopage', 'alpha');
 
 $withtab    = GETPOSTINT('withtab');
 $origin     = GETPOST('origin');
+$withtab = GETPOSTISSET('withtab') ? GETPOSTINT('withtab') : 1;
 
 // Access Control
 if (!$user->admin || !isModEnabled('blockedlog')) {
@@ -114,13 +115,13 @@ if (!isRegistrationDataSavedAndPushed()) {
 print load_fiche_titre($title.'<br>'.$texttop, $linkback, 'blockedlog', 0, '', '', $morehtmlcenter);
 
 if ($withtab) {
-	$head = blockedlogadmin_prepare_head(GETPOST('withtab', 'alpha'));
+	$head = blockedlogadmin_prepare_head($withtab);
 	print dol_get_fiche_head($head, 'technicalinfo', '', -1);
 }
 
 print '<span class="opacitymedium">'.$langs->trans("BlockedLogDesc")."</span><br>\n";
 
-$versionbadge = '<span class="badge-text badge-secondary">'.DOL_VERSION.'</span>';
+$versionbadge = '<span class="badge-text badge-secondary">'.getBlockedLogVersionToShow().'</span>';
 
 
 // Special additional message for FR only
@@ -128,7 +129,7 @@ $infotoshow = '';
 if ($mysoc->country_code == 'FR') {
 	$islne = isALNEQualifiedVersion(1, 1);
 	if ($islne) {
-		if (preg_match('/\-/', DOL_VERSION)) {
+		if (preg_match('/\-/', getBlockedLogVersionToShow())) {
 			// This is an alpha or beta version
 			$infotoshow = $langs->trans("LNECandidateVersionForCertificationFR", $versionbadge);
 		} else {
@@ -137,6 +138,8 @@ if ($mysoc->country_code == 'FR') {
 	} else {
 		$infotoshow = $langs->trans("NotCertifiedVersionFR", $versionbadge);
 	}
+
+	$infotoshow .= ' - <a href="'.DOL_URL_ROOT.'/blockedlog/admin/filecheck.php">'.img_picto('', 'url', 'class="pictofixedwidth"').$langs->trans("FileCheck").'</a>';
 }
 
 // Show generic message (for countries that need registration) to explain we need registration to collect data and why
@@ -158,7 +161,9 @@ if (in_array($mysoc->country_code, array('FR'))) {
 		*/
 	} else {
 		$htmltext = ($infotoshow ? $infotoshow.'<br>' : '');
-		$htmltext .= $langs->trans("ApplicationHasBeenRegistered").'<br>';
+		$htmltext .= $langs->trans("ApplicationHasBeenRegistered");
+		$htmltext .= ' '.$langs->trans("RegistrationNumber").': <span class="badge-text badge-secondary" title="Flag stored into MAIN_FIRST_REGISTRATION_OK_DATE. Registered data saved into BLOCKEDLOG_REGISTRATION_...">'.dol_trunc($registrationnumber, 10).'</span>';
+		$htmltext .= '<br>';
 		$htmltext .= $langs->trans("LastRegistrationDate").' : ';
 		//$htmltext .= dol_print_date(getDolGlobalString('MAIN_FIRST_REGISTRATION_OK_DATE'), 'dayhour', 'tzuserrel');
 		$htmltext .= getDolGlobalString('MAIN_FIRST_REGISTRATION_OK_DATE');
@@ -276,10 +281,10 @@ print '<!-- Link to pay -->';
 print '<span class="fas fa-external-link-alt" style=""></span> <span class="opacitymedium">'.$langs->trans("DebugTools").'</span><br>';
 print '<br>';
 
-$urlforceregistration = DOL_MAIN_URL_ROOT.'/index.php?foreregistration=1';
+$urlforceregistration = DOL_MAIN_URL_ROOT.'/index.php?forceregistration=1';
 print $langs->trans("URLToForceRegistration").'<br>';
-print '<div class="urllink"><input type="text" id="foreregistration" spellcheck="false" class="quatrevingtpercentminusx" value="'.$urlforceregistration.'"><a class="" href="'.$urlforceregistration.'" target="_blank" rel="noopener noreferrer"><span class="fas fa-external-link-alt paddingleft" style=""></span></a></div>';
-print ajax_autoselect('foreregistration');
+print '<div class="urllink"><input type="text" id="forceregistration" spellcheck="false" class="quatrevingtpercentminusx" value="'.$urlforceregistration.'"><a class="" href="'.$urlforceregistration.'" target="_blank" rel="noopener noreferrer"><span class="fas fa-external-link-alt paddingleft" style=""></span></a></div>';
+print ajax_autoselect('forceregistration');
 
 print '<br>';
 
